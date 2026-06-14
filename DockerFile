@@ -1,0 +1,34 @@
+# Dockerfile untuk menjalankan claude-code-telegram di Railway
+# Bot ini = "otak" vibe-coding kamu, dikontrol lewat Telegram.
+
+FROM python:3.11-slim
+
+# 1. System deps + Node.js (WAJIB: Claude Agent SDK butuh Claude Code CLI yang berbasis Node)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl git ca-certificates gnupg ffmpeg \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Claude Code CLI (dipakai oleh claude-agent-sdk di balik layar)
+RUN npm install -g @anthropic-ai/claude-code
+
+# 3. (Opsional) GitHub CLI — biar bot bisa clone/push repo lewat perintah "gh"
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update && apt-get install -y gh \
+    && rm -rf /var/lib/apt/lists/*
+
+# 4. Install bot-nya dari release stabil terbaru (v1.6.0)
+RUN pip install --no-cache-dir "git+https://github.com/RichardAtCT/claude-code-telegram@v1.6.0"
+
+# 5. Folder kerja tempat semua project disimpan.
+#    Mount Railway Volume ke /workspace supaya kode & sesi tidak hilang saat redeploy.
+ENV APPROVED_DIRECTORY=/workspace
+RUN mkdir -p /workspace
+
+# 6. Jalankan bot (entry point dari package: claude-telegram-bot)
+CMD ["claude-telegram-bot"]
